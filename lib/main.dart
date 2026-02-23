@@ -1,24 +1,22 @@
+import 'dart:io' show Platform;
+
 import 'package:awesome_notifications/awesome_notifications.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize awesome_notifications with the SAME channel key
   await AwesomeNotifications().initialize(null, [
     NotificationChannel(
       channelKey: 'force_quit_channel',
-      // MUST match Kotlin CHANNEL_KEY
       channelName: 'Force Quit Alerts',
       channelDescription: 'Notification when app is closed',
       importance: NotificationImportance.High,
       defaultColor: Colors.blue,
     ),
-    // Add your other channels here
   ]);
 
-  // Request permission
   await AwesomeNotifications().isNotificationAllowed().then((allowed) {
     if (!allowed) {
       AwesomeNotifications().requestPermissionToSendNotifications();
@@ -44,14 +42,22 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  static const platform = MethodChannel('com.example.flutter_app_close/service');
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  static const platform = MethodChannel('force_quit_service');
 
   @override
   void initState() {
     super.initState();
-    _startService();
-    _setupNotificationListeners();
+    WidgetsBinding.instance.addObserver(this);
+    if (!kIsWeb) {
+      _startService();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _startService() async {
@@ -62,26 +68,17 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _setupNotificationListeners() {
-    AwesomeNotifications().setListeners(
-      onActionReceivedMethod: onActionReceived,
-    );
-  }
-
-  @pragma('vm:entry-point')
-  static Future<void> onActionReceived(ReceivedAction action) async {
-    // Handle notification tap — app is already reopening
-    debugPrint('Notification tapped: ${action.id}');
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Force Quit Demo')),
-      body: const Center(
+      body: Center(
         child: Text(
-          'Swipe app away → get a notification',
-          style: TextStyle(fontSize: 18),
+          Platform.isIOS
+              ? 'iOS: Scheduled notification fires\nif you don\'t return within 5s'
+              : 'Android: Native onTaskRemoved\n+ scheduled notification backup',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 18),
         ),
       ),
     );
